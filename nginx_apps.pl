@@ -51,7 +51,7 @@ sub detect_failed_apps {
 }
 
 foreach my $file (@directory) {
-    open(my $buffer, $nginx_apps_dir . $file) or die "$!";
+    open(my $buffer, $nginx_apps_dir . $file) or next;
     while (my $line = <$buffer>) {
         chomp $line;
 	    if(index($line, 'server_name ') != -1) {
