@@ -12,6 +12,7 @@ require v5.004;
 
 use File::stat;
 
+use lib '.';
 use HostsUpdater;
 
 
