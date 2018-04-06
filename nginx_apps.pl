@@ -11,10 +11,10 @@ require v5.004;
 # use Data::Dumper qw(Dumper);
 
 use File::stat;
+use File::Basename;
 
-use lib '.';
+use lib dirname(__FILE__);
 use HostsUpdater;
-
 
 ############ Config ##############
 use constant {
