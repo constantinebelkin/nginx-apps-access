@@ -6,47 +6,45 @@
 
 require v5.004;
 
-# use strict;
-# use warnings;
+use strict;
+use warnings;
 # use Data::Dumper qw(Dumper);
-
-my $dir = dirname(__FILE__);
 
 use File::stat;
 use File::Basename;
 
-use lib $dir;
-use HostsUpdater;
-
 ############ Config ##############
 use constant {
-    HOSTS_FILENAME         => '$dir/hosts.list',
-    CHECKED_HOSTS_FILE     => '$dir/checked_hosts.list',
+    DIR                    => dirname(__FILE__) . '/',
+    HOSTS_FILENAME         => 'hosts.list',
+    CHECKED_HOSTS_FILE     => 'checked_hosts.list',
     NGINX_APPS_DIR         => '/etc/nginx/sites-enabled/',
     CODES_TO_IGNORE        => ('401'),
     HOSTS_UPDATE_FREQUENCY => 3600, # in sec (UNIX time since `epoch`)
 };
 ##################################
 
+use lib DIR;
+use HostsUpdater;
 
 sub check_hosts_storage {
     my @checked = ();
     my @hosts = ();
     
-    if (open FILE, '<', CHECKED_HOSTS_FILE) {
+    if (open FILE, '<', DIR . CHECKED_HOSTS_FILE) {
         while (my $line = <FILE>) {
             chomp $line;
             push @checked, $line;
         }
         close FILE;
-    } elsif (open FILE, '>', CHECKED_HOSTS_FILE 
+    } elsif (open FILE, '>', DIR . CHECKED_HOSTS_FILE 
         or die "Can not create a checked host file: $!") {
         close FILE;
     }
     
-    my $file_stat = stat(HOSTS_FILENAME);
+    my $file_stat = stat(DIR . HOSTS_FILENAME);
     
-    if ((open FILE, '<', HOSTS_FILENAME) && 
+    if ((open FILE, '<', DIR . HOSTS_FILENAME) && 
         ((time() - $file_stat->mtime) < HOSTS_UPDATE_FREQUENCY)) {
         while (my $line = <FILE>) {
             chomp $line;
@@ -54,8 +52,8 @@ sub check_hosts_storage {
         }
         close FILE;
     } else {
-        truncate HOSTS_FILENAME, 0 if -e HOSTS_FILENAME; # reset hosts file if it exists
-        @hosts = HostsUpdater::init(HOSTS_FILENAME, NGINX_APPS_DIR);
+        truncate DIR . HOSTS_FILENAME, 0 if -e DIR . HOSTS_FILENAME; # reset hosts file if it exists
+        @hosts = HostsUpdater::init(DIR . HOSTS_FILENAME, NGINX_APPS_DIR);
     }
     
     return \@checked, \@hosts;
@@ -89,7 +87,7 @@ if (@hosts) {
         } 
         unless ($checked_flag) { 
             print(check_host($host));
-            if (open FILE, '>>', CHECKED_HOSTS_FILE 
+            if (open FILE, '>>', DIR . CHECKED_HOSTS_FILE 
                 or die "Can not create a checked host file: $!") {
                 print FILE "$host\n";
                 close FILE;
@@ -97,6 +95,6 @@ if (@hosts) {
             last;
         }
     }
-    truncate CHECKED_HOSTS_FILE, 0 if $checked_flag; # reset checked hosts file
+    truncate DIR . CHECKED_HOSTS_FILE, 0 if $checked_flag; # reset checked hosts file
 }
 
