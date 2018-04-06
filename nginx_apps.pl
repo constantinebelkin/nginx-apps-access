@@ -10,16 +10,18 @@ require v5.004;
 # use warnings;
 # use Data::Dumper qw(Dumper);
 
+my $dir = dirname(__FILE__);
+
 use File::stat;
 use File::Basename;
 
-use lib dirname(__FILE__);
+use lib $dir;
 use HostsUpdater;
 
 ############ Config ##############
 use constant {
-    HOSTS_FILENAME         => 'hosts.list',
-    CHECKED_HOSTS_FILE     => 'checked_hosts.list',
+    HOSTS_FILENAME         => '$dir/hosts.list',
+    CHECKED_HOSTS_FILE     => '$dir/checked_hosts.list',
     NGINX_APPS_DIR         => '/etc/nginx/sites-enabled/',
     CODES_TO_IGNORE        => ('401'),
     HOSTS_UPDATE_FREQUENCY => 3600, # in sec (UNIX time since `epoch`)
