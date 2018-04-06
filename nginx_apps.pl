@@ -1,70 +1,99 @@
 #! /usr/bin/perl
 
+# NGINX hosts access checking script
+# by amazingcat LLC
+# v2.0.1
+
+require v5.004;
+
 # use strict;
 # use warnings;
 # use Data::Dumper qw(Dumper);
 
+use File::stat;
+
+use HostsUpdater;
+
+
 ############ Config ##############
-my $nginx_apps_dir = '/etc/nginx/sites-enabled/';
-my @codes_to_ignore = ('401');
+use constant {
+    HOSTS_FILENAME         => 'hosts.list',
+    CHECKED_HOSTS_FILE     => 'checked_hosts.list',
+    NGINX_APPS_DIR         => '/etc/nginx/sites-enabled/',
+    CODES_TO_IGNORE        => ('401'),
+    HOSTS_UPDATE_FREQUENCY => 3600, # in sec (UNIX time since `epoch`)
+};
 ##################################
 
-my $file_status;
-my @apps;
-my @server;
 
-opendir(DIR, $nginx_apps_dir) or die "$!";
-my @directory = readdir(DIR);
-closedir(DIR);
-
-sub detect_url {
-    my $server_value = $_[0];
-    my $to_push;
+sub check_hosts_storage {
+    my @checked = ();
+    my @hosts = ();
     
-    if (index($server_value, ' ') != -1) {
-        my @multiurls = split / /, $server_value;
-        foreach my $url (@multiurls) {
-            if (index($url, '*') == -1){
-                $to_push = $url;
-                last;
-            }
+    if (open FILE, '<', CHECKED_HOSTS_FILE) {
+        while (my $line = <FILE>) {
+            chomp $line;
+            push @checked, $line;
         }
-    } else {
-        $to_push = $server_value;
+        close FILE;
+    } elsif (open FILE, '>', CHECKED_HOSTS_FILE 
+        or die "Can not create a checked host file: $!") {
+        close FILE;
     }
     
-    return $to_push;
+    my $file_stat = stat(HOSTS_FILENAME);
+    
+    if ((open FILE, '<', HOSTS_FILENAME) && 
+        ((time() - $file_stat->mtime) < HOSTS_UPDATE_FREQUENCY)) {
+        while (my $line = <FILE>) {
+            chomp $line;
+            push @hosts, $line;
+        }
+        close FILE;
+    } else {
+        truncate HOSTS_FILENAME, 0 if -e HOSTS_FILENAME; # reset hosts file if it exists
+        @hosts = HostsUpdater::init(HOSTS_FILENAME, NGINX_APPS_DIR);
+    }
+    
+    return \@checked, \@hosts;
 }
 
-sub detect_failed_apps {
+sub check_host {
+    my $url = $_[0];
     my $fails = "";
     
-    foreach my $url (@apps) {
-        my $result = qx/curl -L -k -s -o \/dev\/null -w '%{http_code}' $url/;
-        # print("Result of $url is $result\n");
-        if ($result ne '200' && grep { $_ ne $result} @codes_to_ignore) {
-            $fails .= "Location: $url, Status: $result\n";
-        }
+    my $result = qx/curl -L -k -s -o \/dev\/null -w '%{http_code}' $url/;
+    # print("$url is checked: $result\n");
+    unless ($result eq '200' || grep(/^$result$/, CODES_TO_IGNORE)) {
+        $fails .= "Location: $url, Status: $result\n";
     }
     
     return $fails;
 }
 
-foreach my $file (@directory) {
-    open(my $buffer, $nginx_apps_dir . $file) or next;
-    while (my $line = <$buffer>) {
-        chomp $line;
-	    if(index($line, 'server_name ') != -1) {
-	        @server = split /server_name /, $line;
-	        my $server_value = substr($server[1], 0, -1);
-    
-            if (index($server[0], '#') == -1 && $server_value ne '_') {
-	            push @apps, detect_url($server_value);
-	            last;
-	        }
+############# Main #################
+
+my ($checked_ref, $hosts_ref) = check_hosts_storage();
+my @checked = @{ $checked_ref };
+my @hosts = @{ $hosts_ref };
+
+if (@hosts) {
+    my $checked_flag;
+    foreach my $host (@hosts) {
+        $checked_flag = 0;
+        foreach my $element (@checked) {
+            $checked_flag = 1 if ($element eq $host);
+        } 
+        unless ($checked_flag) { 
+            print(check_host($host));
+            if (open FILE, '>>', CHECKED_HOSTS_FILE 
+                or die "Can not create a checked host file: $!") {
+                print FILE "$host\n";
+                close FILE;
+            }
+            last;
         }
     }
+    truncate CHECKED_HOSTS_FILE, 0 if $checked_flag; # reset checked hosts file
 }
-
-print(detect_failed_apps());
 
